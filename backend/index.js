@@ -1,73 +1,83 @@
 // backend/index.js
 
 const contractAddress = "YOUR_DEPLOYED_CONTRACT_ADDRESS"; 
-const abi = ["function claim() external", "function hasClaimed(address) view returns (bool)"];
+const abi = ["function claim() external"];
 
 const connectButton = document.getElementById('connectButton');
 const statusText = document.getElementById('status');
 const walletDisplay = document.getElementById('walletAddress');
 
-let userAccount = "";
+let web3Modal;
+let provider;
+let signer;
 
-// Ye function kisi bhi injected wallet (Trust, MetaMask, Phantom) ko dhoond lega
-async function connectAnyWallet() {
-    // 1. Check if any wallet is available
-    if (window.ethereum) {
-        try {
-            statusText.innerText = "Opening wallet selection...";
-            
-            // Ye automatically user ke default wallet (jo bhi chrome/mobile mein hai) ko kholega
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            userAccount = accounts[0];
-
-            statusText.innerText = "Wallet Connected! 🎉";
-            walletDisplay.innerText = userAccount;
-            walletDisplay.style.display = "block";
-            
-            connectButton.innerText = "Claim Airdrop Now";
-            connectButton.style.background = "#bb86fc";
-            connectButton.onclick = claimTokens;
-
-        } catch (error) {
-            console.error(error);
-            statusText.innerText = "Connection failed. Try again.";
-            alert("Connection Error: " + error.message);
+// 1. Initialize Web3Modal
+function init() {
+    const providerOptions = {
+        walletconnect: {
+            package: window.WalletConnectProvider.default,
+            options: {
+                // WalletConnect project ID (Aap walletconnect.com se free le sakte hain)
+                // Abhi ke liye ye test ID hai:
+                rpc: {
+                    1: "https://mainnet.infura.io/v3/YOUR_INFURA_KEY", 
+                    // World Chain RPC yahan add karein
+                }
+            }
         }
-    } else {
-        // Agar mobile par hai aur wallet nahi mila toh deep link use karein
-        alert("No crypto wallet found! If you are on mobile, please open this site inside Trust Wallet or World App browser.");
-        window.open("https://metamask.app.link/dapp/" + window.location.hostname);
+    };
+
+    web3Modal = new window.Web3Modal.default({
+        cacheProvider: false, 
+        providerOptions,
+        theme: "dark"
+    });
+}
+
+// 2. Connect Wallet Function
+async function onConnect() {
+    try {
+        // Ye line professional popup dikhayegi
+        provider = await web3Modal.connect();
+        const library = new ethers.providers.Web3Provider(provider);
+        const accounts = await library.listAccounts();
+        signer = library.getSigner();
+        const address = accounts[0];
+
+        // UI Updates
+        statusText.innerText = "Connected! 🎉";
+        walletDisplay.innerText = address;
+        walletDisplay.style.display = "block";
+        connectButton.innerText = "Claim Now";
+        connectButton.style.background = "#bb86fc";
+        
+        // Switch function to claim
+        connectButton.onclick = claimTokens;
+
+    } catch (e) {
+        console.log("Could not get a wallet connection", e);
     }
 }
 
 async function claimTokens() {
-    const ethers = window.ethers;
-    if (!ethers) return alert("Ethers library missing!");
-
     try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
         const contract = new ethers.Contract(contractAddress, abi, signer);
-
         connectButton.disabled = true;
-        connectButton.innerText = "Confirm in Wallet...";
+        connectButton.innerText = "Confirming...";
         
         const tx = await contract.claim();
-        statusText.innerText = "Transaction pending...";
         await tx.wait();
-
-        statusText.innerText = "Success! Tokens Sent. 🎉";
+        
+        alert("Airdrop Claimed Successfully!");
         connectButton.innerText = "Claimed ✅";
     } catch (error) {
-        console.error(error);
+        alert("Error: " + error.message);
         connectButton.disabled = false;
         connectButton.innerText = "Try Again";
-        alert("Error: " + (error.data?.message || error.message));
     }
 }
 
 window.addEventListener('load', () => {
-    if (connectButton) {
-        connectButton.onclick = connectAnyWallet;
-    }
+    init();
+    connectButton.onclick = onConnect;
 });
