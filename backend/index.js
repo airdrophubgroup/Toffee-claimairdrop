@@ -1,58 +1,81 @@
-// index.js
-console.log("Toffee Web3 Script Loaded!");
+// 1. Contract ki details (Inhe badalna zaroori hai)
+const contractAddress = "YOUR_DEPLOYED_CONTRACT_ADDRESS"; // Deploy karne ke baad yahan address daalein
+const abi = [ 
+    "function claim() external",
+    "function hasClaimed(address) view returns (bool)" 
+]; // Ye simple ABI hai jo claim function ke liye kaafi hai
 
 const connectButton = document.getElementById('connectButton');
 const statusText = document.getElementById('status');
 const walletDisplay = document.getElementById('walletAddress');
 
+let userAccount = "";
+
+// Connection Function
 async function connectWallet() {
-    console.log("Attempting to connect...");
-    
     if (typeof window.ethereum !== 'undefined') {
         try {
-            // 1. Request accounts
             const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            userAccount = accounts[0];
             
-            // 2. Double check if accounts array is not empty
-            if (accounts.length > 0) {
-                const account = accounts[0];
-                console.log("Connected Successfully:", account);
-                
-                // UI Updates
-                statusText.innerText = "Wallet Connected ✅";
-                walletDisplay.innerText = account;
-                connectButton.innerText = "Check Eligibility";
-                connectButton.style.background = "#bb86fc";
-                
-                // Fix for the 'undefined' alert
-                alert("Success! Wallet connected: " + account);
-            } else {
-                // If accounts array is empty, try a fallback
-                const fallbackAccounts = await window.ethereum.request({ method: 'eth_accounts' });
-                if (fallbackAccounts.length > 0) {
-                    alert("Success! Wallet connected: " + fallbackAccounts[0]);
-                } else {
-                    alert("No accounts found. Please unlock MetaMask.");
-                }
-            }
+            // UI Updates
+            statusText.innerText = "Wallet Connected ✅";
+            walletDisplay.innerText = userAccount;
             
+            // Ab button ka kaam badal kar "Claim Tokens" kar dete hain
+            connectButton.innerText = "Claim Airdrop Now";
+            connectButton.style.background = "#bb86fc";
+            
+            // Button ka click event badal kar claimTokens function par set karein
+            connectButton.onclick = claimTokens;
+            
+            console.log("Connected:", userAccount);
         } catch (error) {
-            console.error("Connection Error:", error);
-            if (error.code === 4001) {
-                alert("Please connect your wallet to continue.");
-            } else {
-                alert("Error: " + error.message);
-            }
+            alert("Connection failed: " + error.message);
         }
     } else {
-        alert("MetaMask not found! Please install MetaMask extension.");
+        alert("MetaMask not found!");
     }
 }
 
-// Ensure button is ready
+// Claim Function (Naya function jo aapne pucha tha)
+async function claimTokens() {
+    try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        
+        // Contract ke saath connection
+        const contract = new ethers.Contract(contractAddress, abi, signer);
+
+        statusText.innerText = "Processing Claim... Please wait.";
+        connectButton.disabled = true;
+        connectButton.innerText = "Sending Transaction...";
+
+        // Contract ka claim function call karna
+        const tx = await contract.claim();
+        console.log("Transaction Hash:", tx.hash);
+        
+        alert("Transaction sent! Hash: " + tx.hash);
+
+        // Transaction confirm hone ka wait karein
+        await tx.wait();
+        
+        statusText.innerText = "Tokens Claimed Successfully! 🎉";
+        connectButton.innerText = "Claimed ✅";
+        alert("Congratulations! Tokens have been sent to your wallet.");
+
+    } catch (error) {
+        console.error(error);
+        statusText.innerText = "Claim Failed ❌";
+        connectButton.disabled = false;
+        connectButton.innerText = "Try Claim Again";
+        alert("Error: " + (error.data?.message || error.message));
+    }
+}
+
+// Initial Listener
 window.addEventListener('load', () => {
     if (connectButton) {
         connectButton.onclick = connectWallet;
-        console.log("Button Listener Attached.");
     }
 });
