@@ -11,17 +11,31 @@ let web3Modal;
 let provider;
 let signer;
 
-// 1. Initialize Web3Modal
+// 1. Library ko dhoondne ka naya tarika
+function getEthers() {
+    const lib = window.ethers;
+    if (!lib) {
+        console.error("Ethers NOT found in window object!");
+        return null;
+    }
+    return lib;
+}
+
 function init() {
+    // Check if libraries are loaded
+    if (!window.Web3Modal) {
+        console.error("Web3Modal library missing!");
+        statusText.innerText = "Error: Libraries not loaded. Please refresh.";
+        return;
+    }
+
     const providerOptions = {
         walletconnect: {
-            package: window.WalletConnectProvider.default,
+            package: window.WalletConnectProvider ? window.WalletConnectProvider.default : null,
             options: {
-                // WalletConnect project ID (Aap walletconnect.com se free le sakte hain)
-                // Abhi ke liye ye test ID hai:
+                // World Chain ke liye RPC URL
                 rpc: {
-                    1: "https://mainnet.infura.io/v3/YOUR_INFURA_KEY", 
-                    // World Chain RPC yahan add karein
+                    480: "https://worldchain-mainnet.g.alchemy.com/public" 
                 }
             }
         }
@@ -34,34 +48,36 @@ function init() {
     });
 }
 
-// 2. Connect Wallet Function
 async function onConnect() {
+    const ethersLib = getEthers();
+    if (!ethersLib) {
+        alert("Ethers library is still loading. Please wait 2 seconds and try again.");
+        return;
+    }
+
     try {
-        // Ye line professional popup dikhayegi
         provider = await web3Modal.connect();
-        const library = new ethers.providers.Web3Provider(provider);
+        const library = new ethersLib.providers.Web3Provider(provider);
         const accounts = await library.listAccounts();
         signer = library.getSigner();
+        
         const address = accounts[0];
-
-        // UI Updates
         statusText.innerText = "Connected! 🎉";
         walletDisplay.innerText = address;
         walletDisplay.style.display = "block";
         connectButton.innerText = "Claim Now";
         connectButton.style.background = "#bb86fc";
         
-        // Switch function to claim
         connectButton.onclick = claimTokens;
-
     } catch (e) {
-        console.log("Could not get a wallet connection", e);
+        console.log("Connection closed", e);
     }
 }
 
 async function claimTokens() {
+    const ethersLib = getEthers();
     try {
-        const contract = new ethers.Contract(contractAddress, abi, signer);
+        const contract = new ethersLib.Contract(contractAddress, abi, signer);
         connectButton.disabled = true;
         connectButton.innerText = "Confirming...";
         
@@ -77,7 +93,11 @@ async function claimTokens() {
     }
 }
 
+// Ensure libraries are ready
 window.addEventListener('load', () => {
-    init();
-    connectButton.onclick = onConnect;
+    // Thoda delay taaki sari scripts load ho jayein
+    setTimeout(() => {
+        init();
+        if (connectButton) connectButton.onclick = onConnect;
+    }, 1000); 
 });
