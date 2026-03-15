@@ -1,36 +1,49 @@
-console.log("JS file successfully loaded!"); // Ye check karne ke liye ki file link hui ya nahi
+// index.js
+console.log("Toffee Web3 Script Loaded!");
 
-// Function jo wallet connect karega
+const connectButton = document.getElementById('connectButton');
+const statusText = document.getElementById('status');
+const walletDisplay = document.getElementById('walletAddress');
+
 async function connectWallet() {
-    console.log("Connect button was clicked!");
+    console.log("Attempting to connect...");
     
     if (typeof window.ethereum !== 'undefined') {
         try {
+            // MetaMask Pop-up trigger
             const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
             const account = accounts[0];
             
-            // UI Update
-            document.querySelector('p').innerText = `Connected: ${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
-            const btn = document.getElementById('connectButton');
-            btn.innerText = "Connected ✅";
-            btn.style.background = "#4CAF50";
+            console.log("Connected Successfully:", account);
             
-            console.log("Wallet Connected:", account);
+            // UI Updates
+            statusText.innerText = "Wallet Connected ✅";
+            walletDisplay.innerText = account;
+            connectButton.innerText = "Check Eligibility";
+            connectButton.style.background = "#bb86fc";
+            
+            alert("Success! Wallet connected: " + account);
+            
         } catch (error) {
-            console.error("User rejected the request", error);
+            console.error("Connection Error:", error);
+            if (error.code === 4001) {
+                alert("Please connect your wallet to continue.");
+            } else {
+                alert("An error occurred. Check console.");
+            }
         }
     } else {
-        alert("MetaMask not found. Please install MetaMask!");
+        alert("MetaMask not found! Please install MetaMask extension.");
+        window.open("https://metamask.io/", "_blank");
     }
 }
 
-// Button par click event lagane ka sahi tarika (DOMContentLoaded)
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('connectButton');
-    if (btn) {
-        btn.addEventListener('click', connectWallet);
-        console.log("Event listener attached to button.");
+// Ensure button is ready before adding event
+window.addEventListener('load', () => {
+    if (connectButton) {
+        connectButton.onclick = connectWallet;
+        console.log("Button Listener Attached.");
     } else {
-        console.error("Error: Button with ID 'connectButton' not found!");
+        console.error("Critical Error: Connect Button not found in HTML!");
     }
 });
