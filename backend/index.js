@@ -5,99 +5,74 @@ const abi = ["function claim() external"];
 
 const connectButton = document.getElementById('connectButton');
 const statusText = document.getElementById('status');
-const walletDisplay = document.getElementById('walletAddress');
 
 let web3Modal;
-let provider;
-let signer;
 
-// 1. Library ko dhoondne ka naya tarika
-function getEthers() {
-    const lib = window.ethers;
-    if (!lib) {
-        console.error("Ethers NOT found in window object!");
-        return null;
+function checkLibraries() {
+    if (window.ethers && window.Web3Modal) {
+        console.log("Libraries loaded!");
+        statusText.innerText = "Libraries Ready ✅";
+        connectButton.innerText = "Select Wallet";
+        connectButton.disabled = false;
+        initModal();
+    } else {
+        console.log("Retrying library check...");
+        setTimeout(checkLibraries, 1000); // Har 1 second mein check karega
     }
-    return lib;
 }
 
-function init() {
-    // Check if libraries are loaded
-    if (!window.Web3Modal) {
-        console.error("Web3Modal library missing!");
-        statusText.innerText = "Error: Libraries not loaded. Please refresh.";
-        return;
-    }
-
+function initModal() {
     const providerOptions = {
         walletconnect: {
             package: window.WalletConnectProvider ? window.WalletConnectProvider.default : null,
             options: {
-                // World Chain ke liye RPC URL
-                rpc: {
-                    480: "https://worldchain-mainnet.g.alchemy.com/public" 
-                }
+                rpc: { 480: "https://worldchain-mainnet.g.alchemy.com/public" }
             }
         }
     };
 
     web3Modal = new window.Web3Modal.default({
-        cacheProvider: false, 
+        cacheProvider: false,
         providerOptions,
         theme: "dark"
     });
+
+    connectButton.onclick = onConnect;
 }
 
 async function onConnect() {
-    const ethersLib = getEthers();
-    if (!ethersLib) {
-        alert("Ethers library is still loading. Please wait 2 seconds and try again.");
-        return;
-    }
-
     try {
-        provider = await web3Modal.connect();
+        const provider = await web3Modal.connect();
+        const ethersLib = window.ethers;
         const library = new ethersLib.providers.Web3Provider(provider);
         const accounts = await library.listAccounts();
-        signer = library.getSigner();
-        
-        const address = accounts[0];
-        statusText.innerText = "Connected! 🎉";
-        walletDisplay.innerText = address;
-        walletDisplay.style.display = "block";
+        const signer = library.getSigner();
+
+        statusText.innerText = "Connected: " + accounts[0].substring(0, 6) + "...";
         connectButton.innerText = "Claim Now";
-        connectButton.style.background = "#bb86fc";
-        
-        connectButton.onclick = claimTokens;
+        connectButton.onclick = () => claimTokens(ethersLib, signer);
     } catch (e) {
-        console.log("Connection closed", e);
+        console.error(e);
     }
 }
 
-async function claimTokens() {
-    const ethersLib = getEthers();
+async function claimTokens(ethersLib, signer) {
     try {
         const contract = new ethersLib.Contract(contractAddress, abi, signer);
         connectButton.disabled = true;
         connectButton.innerText = "Confirming...";
-        
         const tx = await contract.claim();
         await tx.wait();
-        
-        alert("Airdrop Claimed Successfully!");
+        alert("Claimed Successfully!");
         connectButton.innerText = "Claimed ✅";
     } catch (error) {
         alert("Error: " + error.message);
         connectButton.disabled = false;
-        connectButton.innerText = "Try Again";
     }
 }
 
-// Ensure libraries are ready
-window.addEventListener('load', () => {
-    // Thoda delay taaki sari scripts load ho jayein
-    setTimeout(() => {
-        init();
-        if (connectButton) connectButton.onclick = onConnect;
-    }, 1000); 
+// Start checking when page loads
+window.addEventListener('DOMContentLoaded', () => {
+    connectButton.disabled = true;
+    checkLibraries();
 });
