@@ -1,57 +1,39 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const { ethers } = require('ethers');
-const cors = require('cors');
+// Check karein ki browser mein MetaMask (Ethereum) hai ya nahi
+const connectButton = document.getElementById('connectButton');
+const statusText = document.querySelector('p');
 
-const app = express();
-app.use(express.json());
-app.use(cors());
-
-mongoose.connect(process.env.MONGODB_URI);
-
-// Schemas
-const User = mongoose.model('User', new mongoose.Schema({
-    address: { type: String, unique: true },
-    lastMined: { type: Number, default: 0 },
-    streakCount: { type: Number, default: 0 }
-}));
-
-const ToffeeCode = mongoose.model('ToffeeCode', new mongoose.Schema({
-    code: { type: String, unique: true },
-    isUsed: { type: Boolean, default: false },
-    reward: { type: Number, default: 500 }
-}));
-
-const wallet = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY);
-
-// Claim Toffee API
-app.post('/api/claim-toffee', async (req, res) => {
-    const { userAddress, code } = req.body;
-    const codeData = await ToffeeCode.findOne({ code, isUsed: false });
-    if (!codeData) return res.status(400).json({ error: "Invalid Code" });
-
-    const amountInWei = ethers.parseUnits(codeData.reward.toString(), 18);
-    const messageHash = ethers.solidityPackedKeccak256(["address", "uint256", "string"], [userAddress, amountInWei, code]);
-    const signature = await wallet.signMessage(ethers.getBytes(messageHash));
-
-    codeData.isUsed = true;
-    await codeData.save();
-    res.json({ signature, amount: amountInWei.toString(), code });
-});
-
-// Admin Code Generator API
-app.post('/api/admin/generate', async (req, res) => {
-    const { count, password } = req.body;
-    if (password !== process.env.ADMIN_SECRET) return res.status(401).send("Unauthorized");
-    
-    let codes = [];
-    for(let i=0; i<count; i++) {
-        const c = `HGNVH-${Math.random().toString(36).substring(2,7).toUpperCase()}`;
-        codes.push({ code: c });
+async function connectWallet() {
+    if (typeof window.ethereum !== 'undefined') {
+        try {
+            // User se permission mangein wallet connect karne ki
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            
+            // Pehla account lein
+            const account = accounts[0];
+            
+            // UI Update karein
+            statusText.innerText = `Connected: ${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
+            connectButton.innerText = "Wallet Connected ✅";
+            connectButton.style.background = "#4CAF50"; // Green color
+            
+            console.log("Connected account:", account);
+        } catch (error) {
+            console.error("User rejected connection", error);
+            alert("Connection rejected by user.");
+        }
+    } else {
+        // Agar MetaMask installed nahi hai
+        alert("MetaMask not found! Please install MetaMask extension.");
+        window.open("https://metamask.io/download/", "_blank");
     }
-    await ToffeeCode.insertMany(codes);
-    res.json({ success: true, codes });
-});
+}
 
-app.listen(5000, () => console.log("Backend Live"));
+// Button par click event listener lagayein
+connectButton.addEventListener('click', connectWallet);
+
+// Agar user account switch kare toh page refresh ho jaye (Best Practice)
+if (window.ethereum) {
+    window.ethereum.on('accountsChanged', () => {
+        window.location.reload();
+    });
+}
